@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>测试</title>
+    <script type="module">
+      import { reactive, effect } from "./lib/mini-vue3.esm.js";
+      // 创建proxy代理
+      let count = reactive({ num: 11 });
+      let result = 0;
+      // 立即执行effect并跟踪依赖
+      effect(() => {
+        // count.num触发get 存储依赖
+        result = count.num + 1;
+      });
+      console.log(result);
+      // 这里会先触发proxy的get操作再触发proxy的set操作，触发依赖trigger 更新result
+      count.num++;
+      console.log(result);
+    </script>
+  </head>
+  <body></body>
+</html>
