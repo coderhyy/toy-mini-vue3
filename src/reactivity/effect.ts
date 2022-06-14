@@ -1,6 +1,9 @@
+type EffectScheduler = (...args: unknown[]) => unknown;
+
 class ReactiveEffect {
+  public deps: Set<ReactiveEffect>[] = [];
   private _fn: Function;
-  constructor(fn: Function) {
+  constructor(public fn: Function, public scheduler?: EffectScheduler) {
     this._fn = fn;
   }
   run() {
@@ -42,13 +45,22 @@ export function trigger(target: Record<EffectKey, any>, key: EffectKey) {
   const depsMap = targetMap.get(target);
   const deps = depsMap?.get(key);
   for (const dep of deps ?? []) {
-    dep.run();
+    if (dep.scheduler) dep.scheduler();
+    else dep.run();
   }
 }
 
+interface EffectOption {
+  scheduler?: EffectScheduler;
+  onStop?: () => void;
+}
+
 // effect会立即触发这个函数，同时响应式追踪其依赖
-export function effect(fn: Function, options = {}) {
+export function effect<T = any>(fn: () => T, option?: EffectOption) {
   const _effect = new ReactiveEffect(fn);
+
+  if (option) Object.assign(_effect, option);
+
   _effect.run();
 
   const runner = _effect.run.bind(_effect);

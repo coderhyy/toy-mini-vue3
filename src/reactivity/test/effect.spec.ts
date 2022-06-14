@@ -28,3 +28,34 @@ it("should return runner when effect was called", () => {
   expect(foo).toBe(3);
   expect(returnValue).toBe("foo");
 });
+
+// 实现effect的scheduler功能
+// 该功能描述：
+// 1. effect首次执行的时候不执行scheduler,直接执行回调函数
+// 2. 之后每次触发trigger函数的时候都会执行scheduler函数，不执行effect回调函数
+// 3. 当调用run的时候才会触发runner，也就是说调用effect的回调函数
+it("scheduler", () => {
+  let dummy;
+  let run: any;
+  const scheduler = jest.fn(() => {
+    run = runner;
+  });
+  const obj = reactive({ foo: 1 });
+  const runner = effect(
+    () => {
+      dummy = obj.foo;
+    },
+    { scheduler }
+  );
+  expect(scheduler).not.toHaveBeenCalled();
+  expect(dummy).toBe(1);
+  // should be called on first trigger set操作的时候,也就是说在trigger被调用的时候
+  obj.foo++;
+  expect(scheduler).toHaveBeenCalledTimes(1);
+  // should not run yet
+  expect(dummy).toBe(1);
+  // manually run  会触发effect的回调函数
+  run();
+  // should have run
+  expect(dummy).toBe(2);
+});
