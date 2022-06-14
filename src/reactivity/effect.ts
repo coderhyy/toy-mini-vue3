@@ -4,10 +4,9 @@ class ReactiveEffect {
     this._fn = fn;
   }
   run() {
-    console.log(this);
-
     activeEffect = this;
-    this._fn();
+    const resultValue = this._fn();
+    return resultValue;
   }
 }
 
@@ -49,6 +48,9 @@ export function trigger(target: Record<EffectKey, any>, key: EffectKey) {
 
 // effect会立即触发这个函数，同时响应式追踪其依赖
 export function effect(fn: Function, options = {}) {
-  const _reactiveEffect = new ReactiveEffect(fn);
-  _reactiveEffect.run();
+  const _effect = new ReactiveEffect(fn);
+  _effect.run();
+
+  const runner = _effect.run.bind(_effect);
+  return runner;
 }
