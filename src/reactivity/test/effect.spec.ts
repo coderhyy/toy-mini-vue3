@@ -15,3 +15,16 @@ describe("effect test", () => {
     expect(result).toBe(13);
   });
 });
+
+// 实现effect返回runner函数 这个runner函数其实就是effect的回调函数
+it("should return runner when effect was called", () => {
+  let foo = 1;
+  let runner = effect(() => {
+    foo++;
+    return "foo";
+  });
+  expect(foo).toBe(2);
+  let returnValue = runner();
+  expect(foo).toBe(3);
+  expect(returnValue).toBe("foo");
+});
