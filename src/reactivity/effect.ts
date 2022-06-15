@@ -1,15 +1,49 @@
 type EffectScheduler = (...args: unknown[]) => unknown;
 
+let shouldTrack = false;
+
 class ReactiveEffect {
   public deps: Set<ReactiveEffect>[] = [];
+  public active: boolean = true; // 该effect是否存活
+  public onStop?: () => void;
+
   private _fn: Function;
   constructor(public fn: Function, public scheduler?: EffectScheduler) {
     this._fn = fn;
   }
   run() {
+    // 如果effect已经杀死了
+    if (!this.active) {
+      return this._fn();
+    }
+
     activeEffect = this;
+
+    shouldTrack = true; // 把开关打开让它可以收集依赖
     const resultValue = this._fn();
+    shouldTrack = false; // 之后把它关闭,这样就没办法在track函数里面收集依赖了
+
     return resultValue;
+  }
+  stop() {
+    // 追加active 标识是为了性能优化，避免每次循环重复调用stop同一个依赖的时候
+    if (!this.active) return;
+
+    cleanupEffect(this);
+    this.onStop?.();
+    this.active = false;
+  }
+}
+
+// 清除指定依赖
+function cleanupEffect(effect: ReactiveEffect) {
+  // deps是 Set集合
+  const { deps } = effect;
+  if (deps.length !== 0) {
+    for (let i = 0; i < deps.length; i++) {
+      deps[i].delete(effect);
+    }
+    deps.length = 0;
   }
 }
 
@@ -21,8 +55,15 @@ type EffectKey = string;
 type IDep = ReactiveEffect;
 const targetMap = new Map<Record<EffectKey, any>, Map<EffectKey, Set<IDep>>>();
 
+function isTracking() {
+  return activeEffect !== undefined && shouldTrack;
+}
+
 // 添加依赖
 export function track(target: Record<EffectKey, any>, key: EffectKey) {
+  // 拦截不必要的依赖收集
+  if (!isTracking()) return;
+
   // 寻找dep依赖的执行顺序
   // target -> key -> deps
   let depsMap = targetMap.get(target); // targetMap的key存的只是target的引用
@@ -37,7 +78,13 @@ export function track(target: Record<EffectKey, any>, key: EffectKey) {
     depsMap.set(key, deps);
   }
 
+  // 避免不必要的add
+  if (deps.has(activeEffect)) return;
+
   deps.add(activeEffect);
+  // activeEffect的deps 接收 Set<ReactiveEffect>类型的deps
+  // 供删除依赖的时候使用(停止监听依赖)
+  activeEffect.deps.push(deps);
 }
 
 // 找出target的key对应的所有依赖，并执行
@@ -50,19 +97,33 @@ export function trigger(target: Record<EffectKey, any>, key: EffectKey) {
   }
 }
 
+interface EffectRunner<T = any> {
+  (): T;
+  effect: ReactiveEffect;
+}
+
 interface EffectOption {
   scheduler?: EffectScheduler;
   onStop?: () => void;
 }
 
 // effect会立即触发这个函数，同时响应式追踪其依赖
-export function effect<T = any>(fn: () => T, option?: EffectOption) {
+export function effect<T = any>(
+  fn: () => T,
+  option?: EffectOption
+): EffectRunner {
   const _effect = new ReactiveEffect(fn);
 
   if (option) Object.assign(_effect, option);
 
   _effect.run();
 
-  const runner = _effect.run.bind(_effect);
+  const runner = _effect.run.bind(_effect) as EffectRunner;
+  runner.effect = _effect;
   return runner;
+}
+
+// 删除依赖
+export function stop(runner: EffectRunner) {
+  runner.effect.stop();
 }

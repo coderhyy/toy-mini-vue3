@@ -1,4 +1,4 @@
-import { effect, reactive } from "../index";
+import { effect, stop, reactive } from "../index";
 describe("effect test", () => {
   it("effect", () => {
     // 创建proxy代理
@@ -58,4 +58,49 @@ it("scheduler", () => {
   run();
   // should have run
   expect(dummy).toBe(2);
+});
+
+// 实现effect的stop功能
+// 功能描述：
+// 通过stop可以停止监听依赖，怎么样停止监听依赖呢？可以通过删除deps依赖，那么trigger被调用的时候就不会被循环调用这个依赖了
+it("stop", () => {
+  let dummy;
+  const obj = reactive({ prop: 1 });
+  const runner = effect(() => {
+    dummy = obj.prop;
+  });
+  obj.prop = 2;
+  expect(dummy).toBe(2);
+  stop(runner);
+  // 单单只是检查set操作是不行的，还必须检查代码通过get操作之后，是否还能执行依赖
+  // obj.prop = 3
+  // 很明显如果换成obj.prop++，expect(dummy).toBe(2)就飘红了
+  // 这是因为obj.prop还有一个get操作，经过get操作之后，经过track函数之后原来被删除的effect又被add到deps上面去了
+  // 所以我们这里必须添加shouldtrack变量来表示应不应该被track 详细见effect.ts的track函数，控制shouldTrack开关在ReactiveEffect的run方法
+  obj.prop++;
+  expect(dummy).toBe(2);
+
+  // stopped effect should still be manually callable
+  runner();
+  expect(dummy).toBe(3);
+});
+
+// 实现onStop
+// 功能描述：
+// 1. 当stop对一个runner执行的时候，runner对应的依赖的onStop就会被执行，相当于事件触发
+it("onStop", () => {
+  const obj = reactive({ foo: 1 });
+  const onStop = jest.fn();
+  let dummy;
+  const runner = effect(
+    () => {
+      dummy = obj.foo;
+    },
+    {
+      onStop,
+    }
+  );
+  stop(runner);
+  // 被调用1次
+  expect(onStop).toBeCalledTimes(1);
 });
