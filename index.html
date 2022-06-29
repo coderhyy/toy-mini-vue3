@@ -6,19 +6,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>测试</title>
     <script type="module">
-      import { reactive, effect } from "./lib/mini-vue3.esm.js";
-      // 创建proxy代理
-      let count = reactive({ num: 11 });
-      let result = 0;
-      // 立即执行effect并跟踪依赖
-      effect(() => {
-        // count.num触发get 存储依赖
-        result = count.num + 1;
+      import { reactive, effect, stop } from "./lib/mini-vue3.esm.js";
+      let dummy;
+      const obj = reactive({ prop: 1 });
+      const runner = effect(() => {
+        dummy = obj.prop;
       });
-      console.log(result);
-      // 这里会先触发proxy的get操作再触发proxy的set操作，触发依赖trigger 更新result
-      count.num++;
-      console.log(result);
+      obj.prop = 2;
+      // expect(dummy).toBe(2);
+      console.log(dummy);
+
+      console.log(runner.effect);
+
+      stop(runner);
+      // 单单只是检查set操作是不行的，还必须检查代码通过get操作之后，是否还能执行依赖
+      // obj.prop = 3
+      // 很明显如果换成obj.prop++，expect(dummy).toBe(2)就飘红了
+      // 这是因为obj.prop还有一个get操作，经过get操作之后，经过track函数之后原来被删除的effect又被add到deps上面去了
+      // 所以我们这里必须添加shouldtrack变量来表示应不应该被track 详细见effect.ts的track函数，控制shouldTrack开关在ReactiveEffect的run方法
+      obj.prop++;
+      // expect(dummy).toBe(2);
+      console.log(dummy);
+
+      // stopped effect should still be manually callable
+      runner();
+      // expect(dummy).toBe(3);
+      console.log(dummy);
     </script>
   </head>
   <body></body>

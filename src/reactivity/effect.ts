@@ -7,20 +7,18 @@ class ReactiveEffect {
   public active: boolean = true; // 该effect是否存活
   public onStop?: () => void;
 
-  private _fn: Function;
-  constructor(public fn: Function, public scheduler?: EffectScheduler) {
-    this._fn = fn;
-  }
+  constructor(public fn: Function, public scheduler?: EffectScheduler) {}
   run() {
-    // 如果effect已经杀死了
+    // 如果effect已经杀死了（stop()函数相关）
     if (!this.active) {
-      return this._fn();
+      return this.fn();
     }
 
     activeEffect = this;
+    console.log("run执行中，this赋值");
 
     shouldTrack = true; // 把开关打开让它可以收集依赖
-    const resultValue = this._fn();
+    const resultValue = this.fn();
     shouldTrack = false; // 之后把它关闭,这样就没办法在track函数里面收集依赖了
 
     return resultValue;
@@ -37,7 +35,7 @@ class ReactiveEffect {
 
 // 清除指定依赖
 function cleanupEffect(effect: ReactiveEffect) {
-  // deps是 Set集合
+  // 对effect解构，解出deps，减少对象在词法环境寻找属性的次数
   const { deps } = effect;
   if (deps.length !== 0) {
     for (let i = 0; i < deps.length; i++) {
@@ -50,7 +48,7 @@ function cleanupEffect(effect: ReactiveEffect) {
 // 当前正在执行的effect
 let activeEffect: ReactiveEffect;
 
-// 储存依赖的数据结构 {key: vlaue} : {key: [dep1, dep2]}
+// 储存依赖的数据结构 { EffectKey: any } : { EffectKey: Set<IDep> }
 type EffectKey = string;
 type IDep = ReactiveEffect;
 const targetMap = new Map<Record<EffectKey, any>, Map<EffectKey, Set<IDep>>>();
@@ -80,6 +78,8 @@ export function track(target: Record<EffectKey, any>, key: EffectKey) {
 
   // 避免不必要的add
   if (deps.has(activeEffect)) return;
+
+  console.log("依赖收集");
 
   deps.add(activeEffect);
   // activeEffect的deps 接收 Set<ReactiveEffect>类型的deps
@@ -117,6 +117,7 @@ export function effect<T = any>(
   if (option) Object.assign(_effect, option);
 
   _effect.run();
+  console.log("run 执行完毕");
 
   const runner = _effect.run.bind(_effect) as EffectRunner;
   runner.effect = _effect;
