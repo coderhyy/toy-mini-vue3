@@ -6,8 +6,13 @@ import { reactive, readonly } from "./reactive";
 const get = createGetter();
 const set = createSetter();
 const readonlyGet = createGetter(true);
+const shallowReadonlyGet = createGetter(true, true);
 
-export function createGetter<T extends object>(isReadonly: boolean = false) {
+// 高阶函数
+export function createGetter<T extends object>(
+  isReadonly: boolean = false,
+  isShallow: boolean = false
+) {
   return function get(target: T, key: string | symbol) {
     if (key === "__v_isReactive") {
       return !isReadonly;
@@ -16,13 +21,17 @@ export function createGetter<T extends object>(isReadonly: boolean = false) {
     }
 
     const res = Reflect.get(target, key);
-    // 实现嵌套对象的 reactive/readonly
+
+    // 判断是否只读
+    if (!isReadonly) track(target, key as string);
+
+    if (isShallow) return res;
+
+    // 嵌套对象则递归 reactive/readonly
     if (isObject(res)) {
       return isReadonly ? readonly(res) : reactive(res);
     }
 
-    // 判断是否需要收集依赖
-    if (!isReadonly) track(target, key as string);
     return res;
   };
 }
@@ -35,12 +44,12 @@ export function createSetter<T extends object>() {
   };
 }
 
-export const mutableHandlers = {
+export const mutableHandlers: ProxyHandler<object> = {
   get,
   set,
 };
 
-export const readonlyHandlers = {
+export const readonlyHandlers: ProxyHandler<object> = {
   get: readonlyGet,
   set(target, key, value) {
     console.warn(
@@ -51,6 +60,14 @@ export const readonlyHandlers = {
     return true;
   },
 };
+
+export const shallowReadonlyHandlers: ProxyHandler<object> = Object.assign(
+  {},
+  readonlyHandlers,
+  {
+    get: shallowReadonlyGet,
+  }
+);
 
 export function createReactiveObject<T extends object>(
   target: T,

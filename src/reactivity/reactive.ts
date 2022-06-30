@@ -2,6 +2,7 @@ import {
   createReactiveObject,
   mutableHandlers,
   readonlyHandlers,
+  shallowReadonlyHandlers,
 } from "./baseHandlers";
 
 export enum ReactiveFlags {
@@ -20,6 +21,10 @@ export function reactive<T extends object>(target: T) {
 
 export function readonly<T extends object>(target: T) {
   return createReactiveObject<T>(target, readonlyHandlers);
+}
+
+export function shallowReadonly<T extends object>(target: T) {
+  return createReactiveObject<T>(target, shallowReadonlyHandlers);
 }
 
 export function isReactive(value: unknown) {
