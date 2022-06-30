@@ -1,6 +1,6 @@
 import { isObject } from "../shared";
 import { track, trigger } from "./effect";
-import { reactive, readonly } from "./reactive";
+import { reactive, readonly, ReactiveFlags } from "./reactive";
 
 // 此处调用一次createSetter和getter，为了不在每次使用mutableHandlers的时候重复调用
 const get = createGetter();
@@ -17,12 +17,14 @@ export function createGetter<T extends object>(
   isShallow: boolean = false
 ) {
   return function get(target: T, key: string | symbol) {
-    if (key === "__v_isReactive") {
+    if (key === ReactiveFlags.IS_REACTIVE) {
       return !isReadonly;
-    } else if (key === "__v_isReadonly") {
+    } else if (key === ReactiveFlags.IS_READONLY) {
       return isReadonly;
-    } else if (key === "__v_isShallow") {
+    } else if (key === ReactiveFlags.IS_SHALLOW) {
       return isShallow;
+    } else if (key === ReactiveFlags.RAW) {
+      return target;
     }
 
     const res = Reflect.get(target, key);
