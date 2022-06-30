@@ -8,6 +8,9 @@ const set = createSetter();
 const readonlyGet = createGetter(true);
 const shallowReadonlyGet = createGetter(true, true);
 
+const shallowGet = createGetter(false, true);
+const shallowSet = createSetter();
+
 // 高阶函数
 export function createGetter<T extends object>(
   isReadonly: boolean = false,
@@ -18,6 +21,8 @@ export function createGetter<T extends object>(
       return !isReadonly;
     } else if (key === "__v_isReadonly") {
       return isReadonly;
+    } else if (key === "__v_isShallow") {
+      return isShallow;
     }
 
     const res = Reflect.get(target, key);
@@ -68,6 +73,11 @@ export const shallowReadonlyHandlers: ProxyHandler<object> = Object.assign(
     get: shallowReadonlyGet,
   }
 );
+
+export const shallowReactiveHandlers: ProxyHandler<object> = {
+  get: shallowGet,
+  set: shallowSet,
+};
 
 export function createReactiveObject<T extends object>(
   target: T,
