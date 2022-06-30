@@ -1,4 +1,5 @@
 type EffectScheduler = (...args: unknown[]) => unknown;
+export type Dep = Set<ReactiveEffect>;
 
 let shouldTrack = false;
 
@@ -53,7 +54,7 @@ type EffectKey = string;
 type IDep = ReactiveEffect;
 const targetMap = new Map<Record<EffectKey, any>, Map<EffectKey, Set<IDep>>>();
 
-function isTracking() {
+export function isTracking() {
   return activeEffect !== undefined && shouldTrack;
 }
 
@@ -76,21 +77,25 @@ export function track(target: Record<EffectKey, any>, key: EffectKey) {
     depsMap.set(key, deps);
   }
 
-  // 避免不必要的add
-  if (deps.has(activeEffect)) return;
+  trackEffect(deps);
+}
 
-  console.log("依赖收集");
-
-  deps.add(activeEffect);
-  // activeEffect的deps 接收 Set<ReactiveEffect>类型的deps
-  // 供删除依赖的时候使用(停止监听依赖)
-  activeEffect.deps.push(deps);
+// 依赖收集
+export function trackEffect(dep: Dep) {
+  if (dep.has(activeEffect)) return;
+  dep.add(activeEffect);
+  activeEffect.deps.push(dep);
 }
 
 // 找出target的key对应的所有依赖，并执行
 export function trigger(target: Record<EffectKey, any>, key: EffectKey) {
   const depsMap = targetMap.get(target);
   const deps = depsMap?.get(key);
+  if (deps) triggerEffect(deps);
+}
+
+// 触发依赖
+export function triggerEffect(deps: Dep) {
   for (const dep of deps ?? []) {
     if (dep.scheduler) dep.scheduler();
     else dep.run();

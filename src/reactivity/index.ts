@@ -1,2 +1,2 @@
-export { effect, stop } from "./effect";
-export { reactive } from "./reactive";
+export * from "./effect";
+export * from "./reactive";
