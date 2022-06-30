@@ -1,17 +1,30 @@
-import { track, trigger } from "./effect";
+import {
+  createReactiveObject,
+  createGetter,
+  createSetter,
+} from "./baseHandlers";
 
-export function reactive(target: Record<string, any>) {
-  return new Proxy(target, {
-    get(target, key) {
-      // 收集依赖
-      track(target, key as string);
-      return Reflect.get(target, key);
-    },
-    set(target, key, value) {
-      const success = Reflect.set(target, key, value);
-      // 触发更新依赖
-      trigger(target, key as string);
-      return success;
-    },
-  });
+export const mutableHandlers: ProxyHandler<object> = {
+  get: createGetter(),
+  set: createSetter(),
+};
+
+export const readonlyHandlers: ProxyHandler<object> = {
+  get: createGetter(true),
+  set: function (target, key, value) {
+    console.warn(
+      `${target} do not set ${String(
+        key
+      )} value ${value}, because it is readonly`
+    );
+    return true;
+  },
+};
+
+export function reactive<T extends object>(target: T) {
+  return createReactiveObject<T>(target, mutableHandlers);
+}
+
+export function readonly<T extends object>(target: T) {
+  return createReactiveObject<T>(target, readonlyHandlers);
 }
