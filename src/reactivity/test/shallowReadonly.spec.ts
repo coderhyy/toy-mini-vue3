@@ -3,7 +3,7 @@ import { shallowReadonly, isReadonly, isReactive } from "../reactive";
 it("shallowReadonly basic test", () => {
   let original = {
     foo: {
-      name: "ghx",
+      name: "hyy",
     },
   };
   let obj = shallowReadonly(original);
