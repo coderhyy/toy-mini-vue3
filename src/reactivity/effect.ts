@@ -3,7 +3,7 @@ export type Dep = Set<ReactiveEffect>;
 
 let shouldTrack = false;
 
-class ReactiveEffect {
+export class ReactiveEffect {
   public deps: Set<ReactiveEffect>[] = [];
   public active: boolean = true; // 该effect是否存活
   public onStop?: () => void;
