@@ -1,4 +1,9 @@
+import { shallowReadonly } from "../reactivity";
 import { isFunction, isObject } from "../shared";
+import { emit } from "./componentEmits";
+import { initProps } from "./componentProps";
+import { initSlots } from "./componentSlots";
+import { publicInstanceProxyHandlers } from "./componentPublicInstance";
 
 // 创建组件实例
 export function createComponentInstance(vnode: any) {
@@ -6,26 +11,48 @@ export function createComponentInstance(vnode: any) {
   const instance = {
     vnode,
     type,
+    render: null,
+    setupState: {}, // setup()的返回值
+    props: {},
+    emit: () => {},
+    slots: {},
   };
+
+  // 赋值 emit
+  // 这里使用 bind 把 instance 进行绑定
+  // 后面用户使用的时候只需要给 event 和参数即可
+  instance.emit = emit.bind(null, instance) as any;
 
   return instance;
 }
 
 export function setupComponent(instance: any) {
-  // 初始化props 暂时不实现
-  // initProps()
-  // 初始化slots 暂时不实现
-  // initSlots()
+  // 取出存在 vnode 里面的 props
+  const { props, children } = instance.vnode;
+
+  // 1.处理 props 初始化props
+  initProps(instance, props);
+  // 2.处理 slots 初始化slots
+  initSlots(instance, children);
   setupStatefulComponent(instance);
 }
 
 // 初始化组件状态
 function setupStatefulComponent(instance: any) {
+  // 用户声明的对象就是 instance.type
+  // const Component = {setup(),render()} ....
   const Component = instance.type;
+
+  instance.proxy = new Proxy({ _: instance }, publicInstanceProxyHandlers);
+
+  // 2.调用setup
   const { setup } = Component;
   if (setup) {
-    const setupResult = setup();
+    const setupResult = setup(shallowReadonly(instance.props), {
+      emit: instance.emit,
+    });
 
+    // 3. 处理 setupResult
     handleSetupResult(instance, setupResult);
   }
 

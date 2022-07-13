@@ -1,6 +1,8 @@
 // 通过render把vnode渲染成真实dom
 
-import { isObject, isString } from "../shared";
+import { isOn, isArray, isFunction } from "../shared";
+import { ShapeFlags } from "../shared/shapeFlags";
+import { Fragment, Text } from "./vnode";
 
 import { createComponentInstance, setupComponent } from "./component";
 
@@ -9,14 +11,38 @@ export function render(vnode: any, container: any) {
 }
 
 function patch(vnode: any, container: any) {
-  // 普通元素 处理vnode是普通标签的情况
-  if (typeof vnode.type === "string") {
-    processElement(vnode, container);
+  const { type } = vnode;
+
+  switch (type) {
+    case Fragment:
+      processFragment(vnode, container);
+      break;
+
+    case Text:
+      processText(vnode, container);
+      break;
+
+    default:
+      {
+        // 普通元素 处理vnode是普通标签的情况
+        if (vnode.shapeFlag & ShapeFlags.ELEMENT) {
+          processElement(vnode, container);
+        }
+        // 组件 处理vnode是组件的情况
+        else if (vnode.shapeFlag & ShapeFlags.STATEFUL_COMPONENT) {
+          processComponent(vnode, container);
+        }
+      }
+      break;
   }
-  // 组件 处理vnode是组件的情况
-  else if (isObject(vnode.type)) {
-    processComponent(vnode, container);
-  }
+}
+
+function processFragment(vnode: any, container: any) {
+  mountChildren(vnode, container);
+}
+
+function processText(vnode: any, container: any) {
+  mountText(vnode, container);
 }
 
 function processComponent(vnode: any, container: any) {
@@ -42,15 +68,32 @@ function mountElement(vnode: any, container: any) {
   const el = document.createElement(vnode.type) as HTMLElement;
   const { props, children } = vnode;
 
-  if (isString(children)) {
+  // vnode children 为 string 类型
+  if (vnode.shapeFlag & ShapeFlags.TEXT_CHILDREN) {
     el.textContent = children;
-  } else if (Array.isArray(children)) {
+  }
+  // vnode children 为 array 类型
+  else if (vnode.shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
     mountChildren(vnode, el);
   }
 
+  let val: any;
+  // 对 vnode 的 props 进行处理，把虚拟属性添加到 el
   for (const key of Object.getOwnPropertyNames(props).values()) {
-    if (Array.isArray(props[key])) el.setAttribute(key, props[key].join(" "));
-    else el.setAttribute(key, props[key]);
+    val = props[key];
+
+    // 添加属性(数组)
+    if (isArray(val)) {
+      el.setAttribute(key, val.join(" "));
+    }
+    // 添加事件
+    else if (isOn(key) && isFunction(val)) {
+      el.addEventListener(key.slice(2).toLowerCase(), val);
+    }
+    // 添加属性
+    else {
+      el.setAttribute(key, val);
+    }
   }
 
   container.append(el);
@@ -63,9 +106,15 @@ function mountChildren(vnode: any, container: any) {
   });
 }
 
+function mountText(vnode: any, container: any) {
+  const { children } = vnode;
+  const textNode = document.createTextNode(children);
+  container.append(textNode);
+}
+
 function setupRenderEffect(instance: any, container: any) {
   // 获取组件返回的 h() 函数
-  const subTree = instance.render();
+  const subTree = instance.render.call(instance.proxy);
   // 对组件进行拆箱操作
   patch(subTree, container);
 }
