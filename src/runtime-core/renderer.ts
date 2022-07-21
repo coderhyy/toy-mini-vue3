@@ -7,15 +7,15 @@ import { Fragment, Text } from "./vnode";
 import { createComponentInstance, setupComponent } from "./component";
 
 export function render(vnode: any, container: any) {
-  patch(vnode, container);
+  patch(vnode, container, null);
 }
 
-function patch(vnode: any, container: any) {
+function patch(vnode: any, container: any, parentComponent: any) {
   const { type } = vnode;
 
   switch (type) {
     case Fragment:
-      processFragment(vnode, container);
+      processFragment(vnode, container, parentComponent);
       break;
 
     case Text:
@@ -26,36 +26,36 @@ function patch(vnode: any, container: any) {
       {
         // 普通元素 处理vnode是普通标签的情况
         if (vnode.shapeFlag & ShapeFlags.ELEMENT) {
-          processElement(vnode, container);
+          processElement(vnode, container, parentComponent);
         }
         // 组件 处理vnode是组件的情况
         else if (vnode.shapeFlag & ShapeFlags.STATEFUL_COMPONENT) {
-          processComponent(vnode, container);
+          processComponent(vnode, container, parentComponent);
         }
       }
       break;
   }
 }
 
-function processFragment(vnode: any, container: any) {
-  mountChildren(vnode, container);
+function processFragment(vnode: any, container: any, parentComponent: any) {
+  mountChildren(vnode, container, parentComponent);
 }
 
 function processText(vnode: any, container: any) {
   mountText(vnode, container);
 }
 
-function processComponent(vnode: any, container: any) {
-  mountComponent(vnode, container);
+function processComponent(vnode: any, container: any, parentComponent: any) {
+  mountComponent(vnode, container, parentComponent);
 }
 
-function processElement(vnode: any, container: any) {
-  mountElement(vnode, container);
+function processElement(vnode: any, container: any, parentComponent: any) {
+  mountElement(vnode, container, parentComponent);
 }
 
 // 挂载 Component
-function mountComponent(vnode: any, container: any) {
-  const instance = createComponentInstance(vnode);
+function mountComponent(vnode: any, container: any, parentComponent: any) {
+  const instance = createComponentInstance(vnode, parentComponent);
 
   // 安装组件
   setupComponent(instance);
@@ -64,7 +64,7 @@ function mountComponent(vnode: any, container: any) {
 }
 
 // 挂载 Element
-function mountElement(vnode: any, container: any) {
+function mountElement(vnode: any, container: any, parentComponent: any) {
   const el = document.createElement(vnode.type) as HTMLElement;
   const { props, children } = vnode;
 
@@ -74,7 +74,7 @@ function mountElement(vnode: any, container: any) {
   }
   // vnode children 为 array 类型
   else if (vnode.shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
-    mountChildren(vnode, el);
+    mountChildren(vnode, el, parentComponent);
   }
 
   let val: any;
@@ -100,9 +100,9 @@ function mountElement(vnode: any, container: any) {
 }
 
 // 挂载 Element 子节点
-function mountChildren(vnode: any, container: any) {
+function mountChildren(vnode: any, container: any, parentComponent: any) {
   vnode.children.forEach((vnode) => {
-    patch(vnode, container);
+    patch(vnode, container, parentComponent);
   });
 }
 
@@ -113,8 +113,8 @@ function mountText(vnode: any, container: any) {
 }
 
 function setupRenderEffect(instance: any, container: any) {
-  // 获取组件返回的 h() 函数
+  // 获取组件对象 render 返回的 h() 函数生成的 vnode
   const subTree = instance.render.call(instance.proxy);
   // 对组件进行拆箱操作
-  patch(subTree, container);
+  patch(subTree, container, instance);
 }

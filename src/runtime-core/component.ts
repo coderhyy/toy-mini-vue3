@@ -6,7 +6,7 @@ import { initSlots } from "./componentSlots";
 import { publicInstanceProxyHandlers } from "./componentPublicInstance";
 
 // 创建组件实例
-export function createComponentInstance(vnode: any) {
+export function createComponentInstance(vnode: any, parentComponent: any) {
   const type = vnode.type;
   const instance = {
     vnode,
@@ -16,6 +16,10 @@ export function createComponentInstance(vnode: any) {
     props: {},
     emit: () => {},
     slots: {},
+    provides: parentComponent
+      ? parentComponent.provides
+      : ({} as Record<string, any>),
+    parent: parentComponent, // 父组件的组件实例
   };
 
   // 赋值 emit
@@ -80,7 +84,7 @@ function finishComponentSetup(instance: any) {
 }
 
 let currentInstance = null;
-export function getCurrentInstance() {
+export function getCurrentInstance(): any {
   return currentInstance;
 }
 
