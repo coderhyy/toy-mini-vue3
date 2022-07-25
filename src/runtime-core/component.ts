@@ -1,4 +1,4 @@
-import { shallowReadonly } from "../reactivity";
+import { shallowReadonly, proxyRefs } from "../reactivity";
 import { isFunction, isObject } from "../shared";
 import { emit } from "./componentEmits";
 import { initProps } from "./componentProps";
@@ -9,13 +9,14 @@ import { publicInstanceProxyHandlers } from "./componentPublicInstance";
 export function createComponentInstance(vnode: any, parentComponent: any) {
   const type = vnode.type;
   const instance = {
-    vnode,
     type,
+    vnode,
     render: null,
-    setupState: {}, // setup()的返回值
+    setupState: {}, // 存储 setup 的返回值
     props: {},
     emit: () => {},
-    slots: {},
+    slots: {}, // 存放插槽的数据
+    isMounted: false, // 判断是否已挂载
     provides: parentComponent
       ? parentComponent.provides
       : ({} as Record<string, any>),
@@ -55,6 +56,7 @@ function setupStatefulComponent(instance: any) {
     // currentInstance 设置为 instance
     setCurrentInstance(instance);
 
+    // 真实的处理场景里面应该是只在 dev 环境才会把 props 设置为只读的
     const setupResult = setup(shallowReadonly(instance.props), {
       emit: instance.emit,
     });
@@ -71,9 +73,14 @@ function setupStatefulComponent(instance: any) {
 
 function handleSetupResult(instance: any, setupResult: any) {
   if (isFunction(setupResult)) {
-    // Todo handle function
+    // 如果返回的是 function 的话，那么绑定到 render 上
+    // 认为是 render 逻辑
+    // setup(){ return ()=>(h("div")) }
+    instance.render = setupResult;
   } else if (isObject(setupResult)) {
-    instance.setupState = setupResult;
+    // 如果是个对象的话
+    // 用 proxyRefs 解包，方便用户直接访问 ref 类型的值，而不需要在 .value
+    instance.setupState = proxyRefs(setupResult);
   }
 }
 
