@@ -9,3 +9,5 @@ export const enum ShapeFlags {
 
   SLOTS_CHILDREN = 1 << 5, // vnode 的 children 为 slots 类型
 }
+
+export const EMPTY_OBJ = {};

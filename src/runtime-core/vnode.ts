@@ -9,8 +9,9 @@ export const Text = Symbol("Text");
 // 创建虚拟 dom 对象
 export function createVNode(type: any, props?: any, children?: string | any[]) {
   const vnode = {
+    el: null,
     type,
-    props: props ?? {},
+    props: props || {},
     children,
     shapeFlag: getShapeFlag(type),
   };

@@ -30,62 +30,38 @@
     <div id="app"></div>
 
     <script type="module">
-      import {
-        createApp,
-        h,
-        renderSlot,
-        createTextVNode,
-        provide,
-        inject,
-      } from "../lib/mini-vue3.esm.js";
+      import { createApp, h, ref } from "../lib/mini-vue3.esm.js";
 
-      // 提供者
-      export const Provider = {
-        name: "Provider",
-        setup() {
-          // provide("foo", "fooVal");
-          provide("bar", "barVal");
-        },
+      export const App = {
+        name: "app",
+        setup() {},
         render() {
-          return h("div", {}, [h("p", {}, "Provider"), h(ProviderTwo)]);
-        },
-      };
-      const ProviderTwo = {
-        name: "ProviderTwo",
-        setup() {
-          provide("foo", "fooTwo");
-          provide("bar", "barTwo");
-          // 期望得到provider的foo---fooVal，实际上得到的是fooTwo
-          const foo = inject("foo", () => "this is default value");
-          const bar = inject("bar");
-          return {
-            foo,
-            bar,
-          };
-        },
-        render() {
+          // this.count进行依赖收集，
           return h("div", {}, [
-            h("p", {}, `ProviderTwo-${this.foo}-${this.bar}`),
-            h(Consumer),
+            h("p", {}, "主页"),
+            // 旧的是数组 新的是文本
+            h(arrayToText),
           ]);
         },
       };
-      const Consumer = {
-        name: "Consumer",
+      export const arrayToText = {
+        name: "arrayToText",
         setup() {
-          const fooVal = inject("foo");
-          const barVal = inject("bar");
+          const isChange = ref(false);
+          // 把ref对象挂载在window是为了方便在外部改变ref的值
+          window.isChange = isChange;
           return {
-            fooVal,
-            barVal,
+            isChange,
           };
         },
         render() {
-          return h("div", {}, `Consumer-${this.fooVal}-${this.barVal}`);
+          return this.isChange
+            ? h("div", {}, [h("div", {}, "A"), h("div", {}, "B")])
+            : h("div", {}, [h("div", {}, "C"), h("div", {}, "D")]);
         },
       };
 
-      const app = createApp(Provider);
+      const app = createApp(App);
       app.mount(document.querySelector("#app"));
     </script>
   </body>
