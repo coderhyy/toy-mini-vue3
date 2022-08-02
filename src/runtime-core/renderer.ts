@@ -31,8 +31,9 @@ export function createRenderer(options: RendererOptions) {
   function patch(
     n1: any,
     n2: any,
-    container: any,
-    parentComponent: any = null
+    container: any = null,
+    parentComponent: any = null,
+    anchor: any = null
   ) {
     const { type } = n2;
 
@@ -51,7 +52,7 @@ export function createRenderer(options: RendererOptions) {
         {
           // 普通元素 处理vnode是普通标签的情况
           if (n2.shapeFlag & ShapeFlags.ELEMENT) {
-            processElement(n1, n2, container, parentComponent);
+            processElement(n1, n2, container, parentComponent, anchor);
           }
           // 组件 处理vnode是组件的情况
           else if (n2.shapeFlag & ShapeFlags.STATEFUL_COMPONENT) {
@@ -78,12 +79,13 @@ export function createRenderer(options: RendererOptions) {
     n1: any,
     n2: any,
     container: any,
-    parentComponent: any
+    parentComponent: any,
+    anchor: any
   ) {
     if (!n1) {
-      mountElement(n2, container, parentComponent);
+      mountElement(n2, container, parentComponent, anchor);
     } else {
-      patchElement(n1, n2, container, parentComponent);
+      patchElement(n1, n2, container, parentComponent, anchor);
     }
   }
 
@@ -91,14 +93,15 @@ export function createRenderer(options: RendererOptions) {
     n1: any,
     n2: any,
     container: any,
-    parentComponent: any
+    parentComponent: any,
+    anchor: any
   ) {
     const oldProps = n1.props || EMPTY_OBJ;
     const newProps = n2.props || EMPTY_OBJ;
 
     const el = (n2.el = n1.el);
 
-    patchChildren(n1, n2, el, parentComponent);
+    patchChildren(n1, n2, el, parentComponent, anchor);
     patchProps(el, oldProps, newProps);
   }
 
@@ -106,7 +109,8 @@ export function createRenderer(options: RendererOptions) {
     n1: any,
     n2: any,
     container: any,
-    parentComponent: any
+    parentComponent: any,
+    anchor: any
   ) {
     const { shapeFlag: prevShapeFlag, children: c1 } = n1;
     const { shapeFlag, children: c2 } = n2;
@@ -136,6 +140,190 @@ export function createRenderer(options: RendererOptions) {
         mountChildren(c2, container, parentComponent);
       } else {
         console.log("diff");
+        patchKeyedChildren(c1, c2, container, parentComponent, anchor);
+      }
+    }
+  }
+
+  // c1 是旧节点的子节点数组
+  // c2 是新节点的子节点数组
+  function patchKeyedChildren(
+    c1: any,
+    c2: any,
+    container: any,
+    parentComponent: any,
+    anchor: any
+  ) {
+    let i = 0; // 遍历子节点的索引 i = 0
+    let l2 = c2.length; // 新子节点长度：l2
+    let e1 = c1.length - 1; // 旧子节点的末尾索引：e1
+    let e2 = l2 - 1; // 新子节点的末尾索引：e2
+
+    // 比较 n1 与 n2 是否是同一类型的 VNode
+    function isSameVNodeType(n1: any, n2: any) {
+      return n1.type === n2.type && n1.key === n2.key;
+    }
+
+    // 1.左端对比 新前旧前
+    while (i <= e1 && i <= e2) {
+      const n1 = c1[i]; // 旧的 vnode 节点
+      const n2 = c2[i]; // 新的 vnode 节点
+
+      if (isSameVNodeType(n1, n2)) {
+        patch(n1, n2, container, parentComponent, anchor);
+      } else {
+        break;
+      }
+      i++;
+    }
+
+    // 2.右端对比 新后旧后
+    while (i <= e1 && i <= e2) {
+      const n1 = c1[e1];
+      const n2 = c2[e2];
+
+      if (isSameVNodeType(n1, n2)) {
+        patch(n1, n2, container, parentComponent, anchor);
+      } else {
+        break;
+      }
+      e1--;
+      e2--;
+    }
+
+    // 3.新增
+    // 当旧子节点被遍历完
+    if (i > e1) {
+      // 新子节点还有元素未被遍历完
+      if (i <= e2) {
+        const nextPos = e2 + 1;
+        // 确定好锚点元素
+        const anchor = nextPos < l2 ? c2[nextPos].el : null;
+        // 遍历剩余的新子节点
+        while (i <= e2) {
+          // patch 第一个传 null 表示没有旧节点，直接将新节点插入即可
+          patch(null, c2[i], container, parentComponent, anchor);
+          i++;
+        }
+      }
+    } else if (i > e2) {
+      while (i <= e1) {
+        hostRemove(c1[i].el);
+        i++;
+      }
+    } else {
+      const s1 = i; // 旧子节点的起始索引
+      const s2 = i; // 新子节点的起始索引
+      const keyToNewIndexMap: Map<string | number, number> = new Map();
+
+      let moved = false;
+      let maxNewIndexSoFar = 0;
+
+      // 遍历新子节点
+      for (let i = s2; i <= e2; i++) {
+        const nextChild = c2[i];
+        keyToNewIndexMap.set(nextChild.key, i);
+      }
+
+      // 需要处理新节点的数量
+      const toBePatched = e2 - s2 + 1;
+      let patched = 0; // 已 patch 的节点数
+      // 初始化 从新的index映射为老的index Map<newIndex, oldIndex>
+      // 创建数组的时候给定数组的长度，这个是性能最快的写法
+      const newIndexToOldIndexMap = new Array(toBePatched);
+      // 初始化为 0 ,后面处理的时候 如果发现是 0 的话，那么说明新值在旧的里面不存在
+      for (let i = 0; i < toBePatched; i++) newIndexToOldIndexMap[i] = 0;
+
+      // 遍历旧子节点
+      // 1.需要找出旧节点有，而新节点没有的 -> 需要把这个节点删除掉
+      // 2.新旧节点都有的 -> 需要 patch
+      for (i = s1; i <= e1; i++) {
+        const prevChild = c1[i];
+
+        // 优化点
+        if (patched >= toBePatched) {
+          hostRemove(prevChild.el);
+          continue; // continue 用于跳过循环中的一个迭代，并继续执行循环中的下一个迭代。
+        }
+
+        let newIndex;
+        if (prevChild.key != null) {
+          // 这里就可以通过key快速的查找了， 看看在新的里面这个节点存在不存在
+          // 时间复杂度O(1)
+          newIndex = keyToNewIndexMap.get(prevChild.key);
+        } else {
+          // 如果没key 的话，那么只能是遍历所有的新节点来确定当前节点存在不存在了
+          // 时间复杂度O(n)
+          for (let j = s2; j <= e2; j++) {
+            if (isSameVNodeType(prevChild, c2[j])) {
+              newIndex = j;
+              break;
+            }
+          }
+        }
+
+        // 当前节点的 key 不存在于 新子节点中，需要把当前旧节点给删除掉
+        if (newIndex === undefined) {
+          hostRemove(prevChild.el);
+        }
+        // 新旧节点都存在
+        else {
+          // 把新节点的索引和旧节点的索引建立映射关系
+          // i + 1 是因为 i 有可能是0 (0 的话会被认为新节点在旧的节点中不存在)
+          newIndexToOldIndexMap[newIndex - s2] = i + 1;
+          // 来确定中间的节点是不是需要移动
+          // 新的 newIndex 如果一直升序的话，那么就说明没有移动
+          // 所以我们可以记录最后一个节点在新的里面的索引，然后看看是不是升序
+          // 不是升序的话，我们可以确定节点移动过了
+          if (newIndex >= maxNewIndexSoFar) {
+            maxNewIndexSoFar = newIndex;
+          } else {
+            moved = true;
+          }
+
+          // 对新旧子节点进行 patch
+          patch(prevChild, c2[newIndex], container, parentComponent, null);
+          // patch 完毕后，递增 patched 计数
+          patched++;
+        }
+      }
+
+      // 利用最长递增子序列来优化移动逻辑
+      const increasingNewIndexSequence = moved
+        ? getSequence(newIndexToOldIndexMap)
+        : [];
+
+      let j = increasingNewIndexSequence.length - 1;
+
+      // 遍历新节点
+      // 1. 需要找出旧节点没有，而新节点有的 -> 需要把这个节点创建
+      // 2. 最后需要移动一下位置，比如 [c,d,e] -> [e,c,d]
+
+      // 使用倒叙遍历
+      for (let i = toBePatched - 1; i >= 0; i--) {
+        // 确定当前要处理的节点索引
+        const nextIndex = s2 + i;
+        const nextChild = c2[nextIndex];
+
+        const anchor = nextIndex + 1 < l2 ? c2[nextIndex + 1].el : null;
+
+        if (newIndexToOldIndexMap[i] === 0) {
+          // 说明新节点在老的里面不存在
+          // 需要创建
+          patch(null, nextChild, container, parentComponent, anchor);
+        } else if (moved) {
+          // 需要移动
+          // 1. j 已经没有了 说明剩下的都需要移动了
+          // 2. 最长子序列里面的值和当前的值匹配不上，说明当前元素需要移动
+          if (j < 0 || increasingNewIndexSequence[j] !== i) {
+            // 移动的话使用 insert 即可
+            hostInsert(nextChild.el, container, anchor);
+          } else {
+            // 这里就是命中了  index 和 最长递增子序列的值
+            // 所以可以移动指针了
+            j--;
+          }
+        }
       }
     }
   }
@@ -184,7 +372,12 @@ export function createRenderer(options: RendererOptions) {
   }
 
   // 挂载 Element
-  function mountElement(vnode: any, container: any, parentComponent: any) {
+  function mountElement(
+    vnode: any,
+    container: any,
+    parentComponent: any,
+    anchor: any
+  ) {
     const el = (vnode.el = hostCreateElement(vnode.type) as HTMLElement);
     const { props, children } = vnode;
 
@@ -205,7 +398,8 @@ export function createRenderer(options: RendererOptions) {
       hostPatchProp(el, key, null, val);
     }
 
-    hostInsert(el, container);
+    // 插入
+    hostInsert(el, container, anchor);
   }
 
   // 挂载 Element 子节点
@@ -252,4 +446,46 @@ export function createRenderer(options: RendererOptions) {
   return {
     createApp: createAppAPI(render),
   };
+}
+
+// 最长递增子序列
+function getSequence(arr: number[]): number[] {
+  const p = arr.slice();
+  const result = [0];
+  let i, j, u, v, c;
+  const len = arr.length;
+  for (i = 0; i < len; i++) {
+    const arrI = arr[i];
+    if (arrI !== 0) {
+      j = result[result.length - 1];
+      if (arr[j] < arrI) {
+        p[i] = j;
+        result.push(i);
+        continue;
+      }
+      u = 0;
+      v = result.length - 1;
+      while (u < v) {
+        c = (u + v) >> 1;
+        if (arr[result[c]] < arrI) {
+          u = c + 1;
+        } else {
+          v = c;
+        }
+      }
+      if (arrI < arr[result[u]]) {
+        if (u > 0) {
+          p[i] = result[u - 1];
+        }
+        result[u] = i;
+      }
+    }
+  }
+  u = result.length;
+  v = result[u - 1];
+  while (u-- > 0) {
+    result[u] = v;
+    v = p[v];
+  }
+  return result;
 }
