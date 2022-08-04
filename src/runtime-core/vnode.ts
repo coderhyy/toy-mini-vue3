@@ -10,6 +10,7 @@ export const Text = Symbol("Text");
 export function createVNode(type: any, props?: any, children?: string | any[]) {
   const vnode = {
     el: null,
+    key: props?.key,
     type,
     props: props || {},
     children,
