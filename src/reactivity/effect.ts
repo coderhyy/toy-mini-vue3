@@ -3,7 +3,7 @@ import { extend } from "../shared";
 type EffectScheduler = (...args: unknown[]) => unknown;
 
 // 储存依赖的数据结构 { EffectKey: any } : { EffectKey: Set<IDep> }
-type Dep = Set<ReactiveEffect>;
+export type Dep = Set<ReactiveEffect>;
 type KeyToDepMap = Map<any, Dep>;
 const targetMap = new WeakMap<any, KeyToDepMap>();
 
